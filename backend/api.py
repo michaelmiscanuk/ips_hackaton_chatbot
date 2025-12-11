@@ -112,7 +112,9 @@ async def chat(request: ChatRequest):
             logger.info("Workflow execution completed")
         except Exception as wf_error:
             logger.error(f"Workflow execution failed: {wf_error}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Workflow error: {str(wf_error)}")
+            raise HTTPException(
+                status_code=500, detail=f"Workflow error: {str(wf_error)}"
+            )
 
         # Get the last message (AI response)
         messages = result.get("messages", [])
@@ -120,7 +122,7 @@ async def chat(request: ChatRequest):
         response_text = (
             last_message.content if last_message else "No response generated."
         )
-        
+
         logger.info(f"Response generated: {response_text[:50]}...")
 
         logger.info("Chat completed successfully")

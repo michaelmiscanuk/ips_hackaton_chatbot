@@ -176,7 +176,7 @@ def chat():
                 error_detail = response.json().get("detail", "Unknown error")
             except:
                 error_detail = f"Status code: {response.status_code}"
-            
+
             logger.error(f"Backend error: {error_detail}")
             return (
                 jsonify({"success": False, "error": f"Backend error: {error_detail}"}),
