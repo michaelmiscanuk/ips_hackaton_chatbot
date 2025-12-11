@@ -3,12 +3,11 @@ ChromaDB Manager for Chatbot with Hybrid Search
 
 This module manages ChromaDB operations for the chatbot, including:
 - Loading data from CSV files
-- Text translation
 - Hybrid search (semantic + BM25)
 - Document deduplication
 
 Key Features:
-- CSV data ingestion with translation
+- CSV data ingestion
 - Hybrid search combining semantic and BM25 approaches
 - Token counting and validation
 - Comprehensive testing and benchmarking
@@ -57,9 +56,9 @@ if str(BASE_DIR) not in sys.path:
 try:
     from rank_bm25 import BM25Okapi
 
-    print("✅ rank_bm25 is available. BM25 search will be enabled.")
+    print("[OK] rank_bm25 is available. BM25 search will be enabled.")
 except ImportError:
-    print("⚠️ Warning: rank_bm25 not available. BM25 search will be disabled.")
+    print("[WARNING] rank_bm25 not available. BM25 search will be disabled.")
     BM25Okapi = None
 
 # Import local modules
@@ -93,52 +92,15 @@ def get_azure_embedding_model():
     )
 
 
-def get_langchain_azure_embedding_model(model_name="text-embedding-3-large__test1"):
+def get_langchain_azure_embedding_model(deployment_name="text-embedding-3-small_mimi"):
     """Get a LangChain AzureOpenAIEmbeddings instance."""
     return AzureOpenAIEmbeddings(
-        model=model_name,
+        model="text-embedding-3-small",
         azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
         openai_api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
-        deployment=model_name,
+        deployment=deployment_name,
     )
-
-
-async def translate_text(text, target_language="en"):
-    """Translate text using Azure Translator API."""
-    import requests
-
-    subscription_key = os.environ.get("TRANSLATOR_TEXT_SUBSCRIPTION_KEY")
-    region = os.environ.get("TRANSLATOR_TEXT_REGION")
-    endpoint = os.environ.get("TRANSLATOR_TEXT_ENDPOINT")
-
-    if not all([subscription_key, region, endpoint]):
-        logger.warning("Translation credentials not found, skipping translation")
-        return text
-
-    path = "/translate?api-version=3.0"
-    params = f"&to={target_language}"
-    constructed_url = endpoint + path + params
-
-    headers = {
-        "Ocp-Apim-Subscription-Key": subscription_key,
-        "Ocp-Apim-Subscription-Region": region,
-        "Content-type": "application/json",
-        "X-ClientTraceId": str(uuid4()),
-    }
-
-    body = [{"text": text}]
-
-    try:
-        loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(
-            None, lambda: requests.post(constructed_url, headers=headers, json=body)
-        )
-        result = response.json()
-        return result[0]["translations"][0]["text"]
-    except Exception as e:
-        logger.error(f"Translation error: {e}")
-        return text
 
 
 def get_document_hash(text: str) -> str:
@@ -241,27 +203,28 @@ class Metrics:
 
 
 async def process_csv_row(row):
-    """Process a single CSV row: format, translate, and create document."""
-    original_text = (
-        f"Subject: {row['subject']}\nBody: {row['body']}\nAnswer: {row['answer']}"
-    )
+    """Process a single CSV row: format and create document."""
+    # Handle NaN/float values by converting to string
+    subject = str(row.get("subject", "")) if pd.notna(row.get("subject")) else ""
+    body = str(row.get("body", "")) if pd.notna(row.get("body")) else ""
+    answer = str(row.get("answer", "")) if pd.notna(row.get("answer")) else ""
+    row_type = str(row.get("type", "")) if pd.notna(row.get("type")) else ""
+    language = str(row.get("language", "")) if pd.notna(row.get("language")) else ""
 
-    try:
-        translated_text = await translate_text(original_text)
-        logger.info(f"Translated row: {row['subject'][:30]}...")
-    except Exception as e:
-        logger.error(f"Error translating row {row['subject'][:30]}...: {e}")
-        translated_text = original_text
+    text_content = f"Subject: {subject}\nBody: {body}\nAnswer: {answer}"
+
+    subject_preview = subject[:30] if len(subject) > 30 else subject
+    logger.info(f"Processing row: {subject_preview}...")
 
     metadata = {
-        "subject": row["subject"],
-        "type": row["type"],
-        "language": row["language"],
-        "original_text": original_text,
-        "hash": get_document_hash(translated_text),
+        "subject": subject,
+        "type": row_type,
+        "language": language,
+        "original_text": text_content,
+        "hash": get_document_hash(text_content),
     }
 
-    return Document(page_content=translated_text, metadata=metadata)
+    return Document(page_content=text_content, metadata=metadata)
 
 
 async def load_documents_from_csv() -> List[Document]:
@@ -276,8 +239,15 @@ async def load_documents_from_csv() -> List[Document]:
 
     documents = []
     for index, row in df.iterrows():
-        doc = await process_csv_row(row)
-        documents.append(doc)
+        try:
+            doc = await process_csv_row(row)
+            documents.append(doc)
+        except Exception as e:
+            logger.error(f"Error processing row {index}: {e}")
+            import traceback
+
+            logger.error(traceback.format_exc())
+            raise
 
     logger.info(f"Prepared {len(documents)} documents")
     return documents
@@ -302,7 +272,7 @@ def hybrid_search(
         embedding_client = get_azure_embedding_model()
         query_embedding = (
             embedding_client.embeddings.create(
-                input=[query_text], model="text-embedding-3-large__test1"
+                input=[query_text], model="text-embedding-3-small_mimi"
             )
             .data[0]
             .embedding
@@ -432,7 +402,7 @@ def hybrid_search(
 # CHROMADB OPERATIONS
 # ==============================================================================
 async def upsert_documents_to_chromadb(
-    deployment: str = "text-embedding-3-large__test1",
+    deployment: str = "text-embedding-3-small_mimi",
     collection_name: str = "chatbot_collection",
 ) -> chromadb.Collection:
     """Load documents from CSV and add to ChromaDB."""
@@ -487,14 +457,40 @@ async def upsert_documents_to_chromadb(
                 # Generate embeddings
                 embeddings = embedding_model.embed_documents(texts)
 
+                # Validate embeddings format
+                if not isinstance(embeddings, list):
+                    logger.error(f"Embeddings is not a list: {type(embeddings)}")
+                    raise TypeError(
+                        f"Expected list of embeddings, got {type(embeddings)}"
+                    )
+
+                # Ensure embeddings is a list of lists (vectors)
+                validated_embeddings = []
+                for idx, emb in enumerate(embeddings):
+                    if isinstance(emb, (list, tuple)):
+                        validated_embeddings.append(list(emb))
+                    elif hasattr(emb, "__iter__") and not isinstance(emb, str):
+                        validated_embeddings.append(list(emb))
+                    else:
+                        logger.error(f"Invalid embedding at index {idx}: {type(emb)}")
+                        raise TypeError(
+                            f"Invalid embedding type at index {idx}: {type(emb)}"
+                        )
+
                 # Add to collection
                 collection.add(
-                    documents=texts, embeddings=embeddings, metadatas=metadatas, ids=ids
+                    documents=texts,
+                    embeddings=validated_embeddings,
+                    metadatas=metadatas,
+                    ids=ids,
                 )
 
                 metrics.processed_docs += len(batch)
             except Exception as e:
                 logger.error(f"Error processing batch {i}: {e}")
+                import traceback
+
+                logger.error(traceback.format_exc())
                 metrics.failed_docs += len(batch)
 
         metrics.update_processing_time()
@@ -525,12 +521,12 @@ def similarity_search_chromadb(
     collection,
     embedding_client,
     query: str,
-    embedding_model_name: str = "text-embedding-3-large__test1",
+    deployment_name: str = "text-embedding-3-small_mimi",
     k: int = 3,
 ):
     """Perform pure embedding-based similarity search."""
     query_embedding = (
-        embedding_client.embeddings.create(input=[query], model=embedding_model_name)
+        embedding_client.embeddings.create(input=[query], model=deployment_name)
         .data[0]
         .embedding
     )
@@ -567,15 +563,26 @@ def write_search_comparison_excel(query, semantic_results, hybrid_results, path)
     # Build lookup tables
     semantic_lookup = {}
     if semantic_results and "documents" in semantic_results:
-        for i, (doc, meta, distance) in enumerate(
-            zip(
-                semantic_results["documents"][0],
-                semantic_results["metadatas"][0],
-                semantic_results["distances"][0],
-            )
-        ):
-            key = meta.get("subject", doc[:50])
-            similarity = 1 - (distance / 2)
+        # Safely get documents, metadatas, and distances
+        docs = (
+            semantic_results.get("documents", [[]])[0]
+            if isinstance(semantic_results.get("documents", [[]]), list)
+            else []
+        )
+        metas = (
+            semantic_results.get("metadatas", [[]])[0]
+            if isinstance(semantic_results.get("metadatas", [[]]), list)
+            else []
+        )
+        distances = (
+            semantic_results.get("distances", [[]])[0]
+            if isinstance(semantic_results.get("distances", [[]]), list)
+            else []
+        )
+
+        for i, (doc, meta, distance) in enumerate(zip(docs, metas, distances)):
+            key = meta.get("subject", doc[:50]) if isinstance(meta, dict) else doc[:50]
+            similarity = 1 - (distance / 2) if isinstance(distance, (int, float)) else 0
             semantic_lookup[key] = (i + 1, similarity, doc)
 
     hybrid_lookup = {}
@@ -667,27 +674,27 @@ if __name__ == "__main__":
             query=QUERY,
             k=k,
         )
-        logger.info(f"✅ Retrieved {len(semantic_results['documents'][0])} results")
+        logger.info(f"[OK] Retrieved {len(semantic_results['documents'][0])} results")
 
         # Step 2: Hybrid search
         logger.info("\n[2/3] Hybrid Search")
         hybrid_results = hybrid_search(collection, QUERY, n_results=k)
-        logger.info(f"✅ Retrieved {len(hybrid_results)} results")
+        logger.info(f"[OK] Retrieved {len(hybrid_results)} results")
 
         # Display top results from hybrid search
-        logger.info("\n🎯 Top 3 Results:")
+        logger.info("\n[RESULTS] Top 3 Results:")
         for i, result in enumerate(hybrid_results[:3], 1):
             subject = result["metadata"].get("subject", "N/A")
             score = result.get("score", 0)
             logger.info(f"  #{i}: {subject} | Score: {score:.4f}")
 
         # Save comparison
-        logger.info("\n📊 Saving comparison to Excel...")
+        logger.info("\n[EXPORT] Saving comparison to Excel...")
         excel_path = BASE_DIR / "backend" / "data" / "search_comparison.xlsx"
         write_search_comparison_excel(
             QUERY, semantic_results, hybrid_results, excel_path
         )
 
-        logger.info("\n✅ Test completed successfully!")
+        logger.info("\n[SUCCESS] Test completed successfully!")
 
     asyncio.run(main())

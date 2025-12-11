@@ -89,7 +89,7 @@ Usage Example:
 -------------
 # Initialize and populate ChromaDB
 collection = upsert_documents_to_chromadb(
-    deployment="text-embedding-3-large__test1",
+    deployment="text-embedding-3-small_mimi",
     collection_name="my_collection"
 )
 
@@ -206,7 +206,7 @@ def get_azure_embedding_model():
     )
 
 
-def get_langchain_azure_embedding_model(model_name="text-embedding-3-large__test1"):
+def get_langchain_azure_embedding_model(model_name="text-embedding-3-small_mimi"):
     """Get a LangChain AzureOpenAIEmbeddings instance with standard configuration.
 
     Args:
@@ -575,7 +575,7 @@ def hybrid_search(
                 collection=collection,
                 embedding_client=embedding_client,
                 query=normalized_query,
-                embedding_model_name="text-embedding-3-large__test1",
+                embedding_model_name="text-embedding-3-small_mimi",
                 k=n_results,
             )
 
@@ -732,7 +732,7 @@ def hybrid_search(
                 collection=collection,
                 embedding_client=embedding_client,
                 query=query_text,
-                embedding_model_name="text-embedding-3-large__test1",
+                embedding_model_name="text-embedding-3-small_mimi",
                 k=n_results,
             )
 
@@ -768,7 +768,7 @@ def hybrid_search(
 # MAIN LOGIC
 # ==============================================================================
 def upsert_documents_to_chromadb(
-    deployment: str = "text-embedding-3-large__test1",
+    deployment: str = "text-embedding-3-small_mimi",
     collection_name: str = "czsu_selections_chromadb",
 ) -> chromadb.Collection | None:
     """Add documents from SQLite to a ChromaDB collection.
@@ -1020,7 +1020,7 @@ def upsert_documents_to_chromadb(
 def get_chromadb_collection(
     collection_name: str,
     chroma_db_path: str,
-    embedding_model_name: str = "text-embedding-3-large__test1",
+    embedding_model_name: str = "text-embedding-3-small_mimi",
 ):
     """Return a direct ChromaDB collection instance for the given collection.
 
@@ -1039,7 +1039,7 @@ def similarity_search_chromadb(
     collection,
     embedding_client,
     query: str,
-    embedding_model_name: str = "text-embedding-3-large__test1",
+    embedding_model_name: str = "text-embedding-3-small_mimi",
     k: int = 3,
 ):
     """Perform a pure embedding-based similarity search using ChromaDB's .query method."""
@@ -1200,7 +1200,7 @@ if __name__ == "__main__":
             collection=collection,
             embedding_client=embedding_client,
             query=QUERY,
-            embedding_model_name="text-embedding-3-large__test1",
+            embedding_model_name="text-embedding-3-small_mimi",
             k=k,
         )
         print(f"✅ Retrieved {len(semantic_results['documents'][0])} semantic results")

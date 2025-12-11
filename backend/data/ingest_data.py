@@ -11,7 +11,6 @@ from langchain_core.documents import Document
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from src.config.models import get_langchain_azure_embedding_model
-from src.utils.helpers import translate_text
 
 # Load environment variables
 load_dotenv()
@@ -29,29 +28,23 @@ CHROMA_DB_DIR = BASE_DIR / "backend" / "data" / "chroma_db"
 
 
 async def process_row(row):
-    """Process a single row: format, translate, and create document."""
+    """Process a single row: format and create document."""
     # Combine fields into a single text chunk
-    original_text = (
+    text_content = (
         f"Subject: {row['subject']}\nBody: {row['body']}\nAnswer: {row['answer']}"
     )
 
-    # Translate to English
-    try:
-        translated_text = await translate_text(original_text)
-        print(f"Translated row: {row['subject'][:30]}...")
-    except Exception as e:
-        print(f"Error translating row {row['subject'][:30]}...: {e}")
-        translated_text = original_text  # Fallback to original
+    print(f"Processing row: {row['subject'][:30]}...")
 
     # Create metadata
     metadata = {
         "subject": row["subject"],
         "type": row["type"],
         "language": row["language"],
-        "original_text": original_text,
+        "original_text": text_content,
     }
 
-    return Document(page_content=translated_text, metadata=metadata)
+    return Document(page_content=text_content, metadata=metadata)
 
 
 async def main():

@@ -25,6 +25,16 @@ pip install uv
 uv pip install -e .
 echo.
 
+REM Unzip ChromaDB if needed
+if exist "data\chroma_db.zip" (
+    if not exist "data\chroma_db" (
+        echo Extracting ChromaDB...
+        python -c "import zipfile; zipfile.ZipFile('data/chroma_db.zip', 'r').extractall('data')"
+        echo ChromaDB extracted successfully.
+        echo.
+    )
+)
+
 REM Check if Ollama is running
 echo Checking Ollama...
 curl -s http://localhost:11434/api/tags > nul 2>&1

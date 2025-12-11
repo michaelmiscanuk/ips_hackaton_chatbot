@@ -38,7 +38,7 @@ async def main():
 
     try:
         collection = await upsert_documents_to_chromadb(
-            deployment="text-embedding-3-large__test1",
+            deployment="text-embedding-3-small_mimi",
             collection_name="chatbot_collection",
         )
 

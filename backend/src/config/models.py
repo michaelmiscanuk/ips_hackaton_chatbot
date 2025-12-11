@@ -99,6 +99,7 @@ def get_model(
             temperature=config.temperature,
             base_url=config.base_url,
             num_ctx=config.num_ctx,
+            num_gpu=0,  # Force CPU-only mode (0 = disable GPU)
             # Additional Ollama-specific parameters
             format="",  # Empty string for regular text generation
         )
@@ -110,20 +111,20 @@ def get_model(
         return MockChatOllama()
 
 
-def get_langchain_azure_embedding_model(model_name="text-embedding-3-large__test1"):
+def get_langchain_azure_embedding_model(deployment_name="text-embedding-3-small_mimi"):
     """Get a LangChain AzureOpenAIEmbeddings instance with standard configuration.
 
     Args:
-        model_name (str): The name of the embedding model deployment
+        deployment_name (str): The name of the Azure deployment (e.g., "text-embedding-3-small_mimi")
 
     Returns:
         AzureOpenAIEmbeddings: Configured embedding model instance
     """
 
     return AzureOpenAIEmbeddings(
-        model=model_name,
+        model="text-embedding-3-small",  # The actual model name
         azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
         openai_api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
-        deployment=model_name,
+        deployment=deployment_name,  # Your Azure deployment name
     )
