@@ -16,9 +16,16 @@ from src.utils.helpers import translate_text
 # Load environment variables
 load_dotenv()
 
-DATA_DIR = Path(__file__).parent / "data"
-CSV_PATH = DATA_DIR / "sample0.csv"
-CHROMA_DB_DIR = DATA_DIR / "chroma_db"
+# Constants
+try:
+    BASE_DIR = Path(__file__).resolve().parents[2]
+    print(f"🔍 BASE_DIR calculated from __file__: {BASE_DIR}")
+except NameError:
+    BASE_DIR = Path(os.getcwd()).parents[0]
+    print(f"🔍 BASE_DIR calculated from cwd: {BASE_DIR}")
+
+CSV_PATH = BASE_DIR / "backend" / "data" / "sample0.csv"
+CHROMA_DB_DIR = BASE_DIR / "backend" / "data" / "chroma_db"
 
 
 async def process_row(row):
