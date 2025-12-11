@@ -75,13 +75,6 @@ echo [3/7] Removing existing virtual environment...
 if exist ".venv" (
     echo Removing .venv directory...
     rmdir /s /q ".venv" 2>nul
-    if exist ".venv" (
-        echo Forcing removal of .venv...
-        robocopy /MIR /NFL /NDL /NJH /NJS "." "temp_empty_dir" >nul 2>&1
-        rmdir /s /q "temp_empty_dir" >nul 2>&1
-        robocopy /MIR /NFL /NDL /NJH /NJS "temp_empty_dir" ".venv" >nul 2>&1
-        rmdir /s /q ".venv" >nul 2>&1
-    )
     echo Virtual environment removed.
 ) else (
     echo No existing virtual environment found.
