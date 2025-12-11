@@ -31,7 +31,7 @@ CHROMA_DB_DIR = DATA_DIR / "chroma_db"
 sys.path.insert(0, str(DATA_DIR))
 
 try:
-    from chromadb_manager import hybrid_search, cohere_rerank, get_chromadb_collection
+    from chromadb_manager import hybrid_search, get_chromadb_collection
 
     HYBRID_SEARCH_AVAILABLE = True
     logger.info("✅ Hybrid search module loaded successfully")
@@ -46,8 +46,7 @@ def retrieve(state: ChatState) -> Dict[str, Any]:
 
     This function implements a sophisticated retrieval strategy:
     1. Hybrid search (semantic + BM25) to get diverse results
-    2. Cohere reranking for improved relevance
-    3. Fallback to simple semantic search if hybrid search unavailable
+    2. Fallback to simple semantic search if hybrid search unavailable
     """
     logger.info("NODE: Retrieve - Starting")
 
@@ -78,30 +77,15 @@ def retrieve(state: ChatState) -> Dict[str, Any]:
                 hybrid_results = hybrid_search(collection, query, n_results=30)
 
                 if hybrid_results:
-                    # Convert hybrid results to Document objects for reranking
-                    hybrid_docs = [
-                        Document(
-                            page_content=result["document"], metadata=result["metadata"]
-                        )
-                        for result in hybrid_results
-                    ]
+                    # Extract top results from hybrid search
+                    context = [result["document"] for result in hybrid_results[:5]]
 
-                    # Apply Cohere reranking to get top results
-                    logger.info("Applying Cohere reranking")
-                    reranked_results = cohere_rerank(query, hybrid_docs, top_n=5)
+                    # Log scores
+                    for i, result in enumerate(hybrid_results[:5], 1):
+                        score = result.get("score", 0)
+                        logger.info(f"  - Result {i} score: {score:.4f}")
 
-                    # Extract context from reranked results
-                    context = []
-                    for doc, res in reranked_results:
-                        context.append(doc.page_content)
-                        if res:
-                            logger.info(
-                                f"  - Relevance score: {res.relevance_score:.4f}"
-                            )
-
-                    logger.info(
-                        f"Retrieved {len(context)} documents via hybrid search + reranking"
-                    )
+                    logger.info(f"Retrieved {len(context)} documents via hybrid search")
                     return {"context": context}
 
             except Exception as e:

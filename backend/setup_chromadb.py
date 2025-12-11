@@ -65,7 +65,6 @@ async def main():
         print("  1. Created backend/data/sample0.csv")
         print("  2. Configured Azure OpenAI credentials in .env")
         print("  3. (Optional) Configured Azure Translator for translation")
-        print("  4. (Optional) Configured Cohere API for reranking")
         print()
         sys.exit(1)
 

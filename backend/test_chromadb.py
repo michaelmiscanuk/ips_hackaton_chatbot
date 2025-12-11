@@ -20,7 +20,6 @@ sys.path.insert(0, str(Path(__file__).parent / "data"))
 from chromadb_manager import (
     get_chromadb_collection,
     hybrid_search,
-    cohere_rerank,
     similarity_search_chromadb,
     get_azure_embedding_model,
 )
@@ -72,7 +71,7 @@ async def test_search(query: str):
         print()
 
         # Test 2: Hybrid search
-        print("[2/3] Hybrid Search (Semantic + BM25)")
+        print("[2/2] Hybrid Search (Semantic + BM25)")
         print("-" * 70)
         hybrid_results = hybrid_search(collection, query, n_results=10)
 
@@ -87,30 +86,9 @@ async def test_search(query: str):
             print(f"      Combined Score: {score:.6f}")
             print(f"      Semantic: {semantic_score:.4f} | BM25: {bm25_score:.4f}")
             print(f"      Source: {source}")
+            print(f"      Preview: {result['document'][:100]}...")
             print()
         print()
-
-        # Test 3: Cohere reranking
-        print("[3/3] Cohere Reranked Results")
-        print("-" * 70)
-
-        # Convert hybrid results to documents
-        hybrid_docs = [
-            Document(page_content=r["document"], metadata=r["metadata"])
-            for r in hybrid_results
-        ]
-
-        # Apply reranking
-        reranked = cohere_rerank(query, hybrid_docs, top_n=5)
-
-        for i, (doc, res) in enumerate(reranked, 1):
-            subject = doc.metadata.get("subject", "N/A")
-            score = res.relevance_score if res else 0
-
-            print(f"  #{i}: {subject}")
-            print(f"      Cohere Score: {score:.6f}")
-            print(f"      Preview: {doc.page_content[:100]}...")
-            print()
 
         # Summary
         print("=" * 70)
@@ -122,11 +100,8 @@ async def test_search(query: str):
             f"  - Semantic search returned {len(semantic_results['documents'][0])} results"
         )
         print(f"  - Hybrid search returned {len(hybrid_results)} results")
-        print(f"  - Reranking produced {len(reranked)} top results")
         print()
-        print(
-            "The final result would use the reranked documents as context for the LLM."
-        )
+        print("The top hybrid search results would be used as context for the LLM.")
         print()
 
     except Exception as e:
@@ -138,7 +113,6 @@ async def test_search(query: str):
         print("Make sure you have:")
         print("  1. Run 'python setup_chromadb.py' first")
         print("  2. Configured Azure OpenAI credentials")
-        print("  3. (Optional) Configured Cohere API key")
         print()
         sys.exit(1)
 

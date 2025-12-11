@@ -150,7 +150,6 @@ import math
 
 # Third-party imports
 import chromadb
-import cohere
 import numpy as np
 import openpyxl
 import tiktoken
@@ -1060,42 +1059,11 @@ def similarity_search_chromadb(
     return results
 
 
-def cohere_rerank(query, docs, top_n):
-    """Return reranked list of (Document, CohereResult) tuples using Cohere's rerank-multilingual-v3.0, using .index field for correct mapping."""
-    cohere_api_key = os.environ.get("COHERE_API_KEY", "")
-    co = cohere.Client(cohere_api_key)
-    texts = [doc.page_content for doc in docs]
-    docs_for_cohere = [{"text": t} for t in texts]
-    # print("\n[DEBUG] Texts sent to Cohere rerank:")
-    # for idx, t in enumerate(texts, 1):
-    #     t_clean = t[:100].replace('\n', ' ')
-    #     print(f"#{idx}: {t_clean}{'...' if len(t) > 100 else ''}")
-    rerank_response = co.rerank(
-        model="rerank-multilingual-v3.0",
-        query=query,
-        documents=docs_for_cohere,
-        top_n=top_n,
-    )
-
-    # print("[DEBUG] Raw Cohere rerank response:")
-    # print(rerank_response)
-
-    # Use .index field to map back to the original doc
-    reranked = []
-    for res in rerank_response.results:
-        doc = docs[res.index]
-        reranked.append((doc, res))
-    return reranked
-
-
-def write_search_comparison_excel(
-    query, semantic_results, hybrid_results, reranked_results, path
-):
+def write_search_comparison_excel(query, semantic_results, hybrid_results, path):
     """
     Write a comprehensive comparison Excel file showing the agent's actual workflow:
     1. Pure semantic search (baseline)
     2. Hybrid search (semantic + BM25)
-    3. Cohere reranked results (final)
     """
     from openpyxl import Workbook
 
@@ -1107,12 +1075,10 @@ def write_search_comparison_excel(
             "Query",
             "Rank_Semantic",
             "Rank_Hybrid",
-            "Rank_Reranked",
             "Text_Preview",
             "Selection_Code",
             "Semantic_Score",
             "Hybrid_Score",
-            "Cohere_Score",
         ]
     )
 
@@ -1134,29 +1100,17 @@ def write_search_comparison_excel(
         key = result["metadata"].get("selection", "unknown")
         hybrid_lookup[key] = (i, result.get("score", 0), result["document"])
 
-    rerank_lookup = {}
-    for i, (doc, res) in enumerate(reranked_results, 1):
-        key = doc.metadata.get("selection") if doc.metadata else doc.page_content[:50]
-        rerank_lookup[key] = (i, res.relevance_score, doc.page_content)
-
     # Get all unique selection codes
-    all_keys = (
-        set(semantic_lookup.keys())
-        | set(hybrid_lookup.keys())
-        | set(rerank_lookup.keys())
-    )
+    all_keys = set(semantic_lookup.keys()) | set(hybrid_lookup.keys())
 
     # Collect all rows
     rows = []
     for key in all_keys:
         rank_sem, sem_score, sem_text = semantic_lookup.get(key, (None, None, None))
         rank_hyb, hyb_score, hyb_text = hybrid_lookup.get(key, (None, None, None))
-        rank_rerank, cohere_score, rerank_text = rerank_lookup.get(
-            key, (None, None, None)
-        )
 
         # Use the best available text preview
-        text_preview = sem_text or hyb_text or rerank_text or ""
+        text_preview = sem_text or hyb_text or ""
         if text_preview:
             text_preview = (
                 text_preview[:200].replace("\n", " ") + "..."
@@ -1169,12 +1123,10 @@ def write_search_comparison_excel(
                 query,
                 rank_sem,
                 rank_hyb,
-                rank_rerank,
                 text_preview,
                 key,
                 sem_score,
                 hyb_score,
-                cohere_score,
             ]
         )
 
@@ -1282,27 +1234,21 @@ if __name__ == "__main__":
                 f"  #{i}: {selection} | Score: {score:.6f} (sem: {semantic_score:.3f}, bm25: {bm25_score:.3f}, src: {source})"
             )
 
-        # Step 3: Cohere reranking (agent's second step)
-        print(f"\n[3/3] Cohere Reranking (agent workflow)")
-        # Convert hybrid results to Document objects for reranking
-        hybrid_docs = []
-        for result in hybrid_results:
-            doc = Document(page_content=result["document"], metadata=result["metadata"])
-            hybrid_docs.append(doc)
-
-        reranked = cohere_rerank(QUERY, hybrid_docs, top_n=k)
-        print(f"✅ Reranked {len(reranked)} results with Cohere")
-        for i, (doc, res) in enumerate(reranked[:5], 1):
-            selection = doc.metadata.get("selection") if doc.metadata else "N/A"
-            print(f"  #{i}: {selection} | Cohere Score: {res.relevance_score:.6f}")
+        # Display top hybrid results
+        print(f"\n🎯 Final Results (top 5 from hybrid search):")
+        for i, result in enumerate(hybrid_results[:5], 1):
+            selection = result["metadata"].get("selection", "N/A")
+            score = result.get("score", 0)
+            print(f"  #{i}: {selection} | Score: {score:.6f}")
 
         # Final selection codes (what agent would use)
         print(f"\n🎯 Final Agent Selection Codes (top 3 above threshold 0.0005):")
         SIMILARITY_THRESHOLD = 0.0005
         final_selections = []
-        for doc, res in reranked:
-            selection_code = doc.metadata.get("selection") if doc.metadata else None
-            if selection_code and res.relevance_score >= SIMILARITY_THRESHOLD:
+        for result in hybrid_results:
+            selection_code = result["metadata"].get("selection")
+            score = result.get("score", 0)
+            if selection_code and score >= SIMILARITY_THRESHOLD:
                 final_selections.append(selection_code)
         final_top3 = final_selections[:3]
         print(f"  {final_top3}")
@@ -1312,14 +1258,14 @@ if __name__ == "__main__":
         debug_xlsx_path = BASE_DIR / "metadata" / "search_comparison_for_debug.xlsx"
         try:
             write_search_comparison_excel(
-                QUERY, semantic_results, hybrid_results, reranked, debug_xlsx_path
+                QUERY, semantic_results, hybrid_results, debug_xlsx_path
             )
             print(f"✅ Excel comparison written to: {debug_xlsx_path}")
         except Exception as e:
             print(f"❌ Error writing Excel comparison: {e}")
 
         print(f"\n🎉 Agent workflow test completed successfully!")
-        print(f"📈 Workflow: Semantic → Hybrid → Cohere → Top 3 selections")
+        print(f"📈 Workflow: Semantic → Hybrid → Top 3 selections")
 
     except KeyboardInterrupt:
         print__chromadb_debug(f"{CREATE_CHROMADB_ID}: Process interrupted by user")

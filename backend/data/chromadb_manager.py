@@ -5,13 +5,11 @@ This module manages ChromaDB operations for the chatbot, including:
 - Loading data from CSV files
 - Text translation
 - Hybrid search (semantic + BM25)
-- Cohere reranking
 - Document deduplication
 
 Key Features:
 - CSV data ingestion with translation
 - Hybrid search combining semantic and BM25 approaches
-- Cohere reranking for improved results
 - Token counting and validation
 - Comprehensive testing and benchmarking
 """
@@ -37,7 +35,6 @@ import tqdm as tqdm_module
 
 # Third-party imports
 import chromadb
-import cohere
 from langchain_core.documents import Document
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
@@ -432,38 +429,6 @@ def hybrid_search(
 
 
 # ==============================================================================
-# COHERE RERANKING
-# ==============================================================================
-def cohere_rerank(query: str, docs: List[Document], top_n: int):
-    """Rerank documents using Cohere's rerank-multilingual-v3.0."""
-    cohere_api_key = os.environ.get("COHERE_API_KEY", "")
-    if not cohere_api_key:
-        logger.warning("COHERE_API_KEY not found, skipping reranking")
-        return [(doc, None) for doc in docs[:top_n]]
-
-    co = cohere.Client(cohere_api_key)
-    texts = [doc.page_content for doc in docs]
-    docs_for_cohere = [{"text": t} for t in texts]
-
-    try:
-        rerank_response = co.rerank(
-            model="rerank-multilingual-v3.0",
-            query=query,
-            documents=docs_for_cohere,
-            top_n=top_n,
-        )
-
-        reranked = []
-        for res in rerank_response.results:
-            doc = docs[res.index]
-            reranked.append((doc, res))
-        return reranked
-    except Exception as e:
-        logger.error(f"Cohere reranking error: {e}")
-        return [(doc, None) for doc in docs[:top_n]]
-
-
-# ==============================================================================
 # CHROMADB OPERATIONS
 # ==============================================================================
 async def upsert_documents_to_chromadb(
@@ -581,9 +546,7 @@ def similarity_search_chromadb(
 # ==============================================================================
 # TESTING AND BENCHMARKING
 # ==============================================================================
-def write_search_comparison_excel(
-    query, semantic_results, hybrid_results, reranked_results, path
-):
+def write_search_comparison_excel(query, semantic_results, hybrid_results, path):
     """Write search comparison to Excel file."""
     wb = Workbook()
     ws = wb.active
@@ -594,12 +557,10 @@ def write_search_comparison_excel(
             "Query",
             "Rank_Semantic",
             "Rank_Hybrid",
-            "Rank_Reranked",
             "Text_Preview",
             "Subject",
             "Semantic_Score",
             "Hybrid_Score",
-            "Cohere_Score",
         ]
     )
 
@@ -622,29 +583,16 @@ def write_search_comparison_excel(
         key = result["metadata"].get("subject", "unknown")
         hybrid_lookup[key] = (i, result.get("score", 0), result["document"])
 
-    rerank_lookup = {}
-    for i, (doc, res) in enumerate(reranked_results, 1):
-        key = doc.metadata.get("subject", doc.page_content[:50])
-        score = res.relevance_score if res else 0
-        rerank_lookup[key] = (i, score, doc.page_content)
-
     # Combine all keys
-    all_keys = (
-        set(semantic_lookup.keys())
-        | set(hybrid_lookup.keys())
-        | set(rerank_lookup.keys())
-    )
+    all_keys = set(semantic_lookup.keys()) | set(hybrid_lookup.keys())
 
     # Collect rows
     rows = []
     for key in all_keys:
         rank_sem, sem_score, sem_text = semantic_lookup.get(key, (None, None, None))
         rank_hyb, hyb_score, hyb_text = hybrid_lookup.get(key, (None, None, None))
-        rank_rerank, cohere_score, rerank_text = rerank_lookup.get(
-            key, (None, None, None)
-        )
 
-        text_preview = sem_text or hyb_text or rerank_text or ""
+        text_preview = sem_text or hyb_text or ""
         if text_preview:
             text_preview = (
                 text_preview[:200].replace("\n", " ") + "..."
@@ -657,12 +605,10 @@ def write_search_comparison_excel(
                 query,
                 rank_sem,
                 rank_hyb,
-                rank_rerank,
                 text_preview,
                 key,
                 sem_score,
                 hyb_score,
-                cohere_score,
             ]
         )
 
@@ -728,27 +674,18 @@ if __name__ == "__main__":
         hybrid_results = hybrid_search(collection, QUERY, n_results=k)
         logger.info(f"✅ Retrieved {len(hybrid_results)} results")
 
-        # Step 3: Cohere reranking
-        logger.info("\n[3/3] Cohere Reranking")
-        hybrid_docs = [
-            Document(page_content=r["document"], metadata=r["metadata"])
-            for r in hybrid_results
-        ]
-        reranked = cohere_rerank(QUERY, hybrid_docs, top_n=min(5, k))
-        logger.info(f"✅ Reranked {len(reranked)} results")
-
-        # Display top results
+        # Display top results from hybrid search
         logger.info("\n🎯 Top 3 Results:")
-        for i, (doc, res) in enumerate(reranked[:3], 1):
-            subject = doc.metadata.get("subject", "N/A")
-            score = res.relevance_score if res else 0
+        for i, result in enumerate(hybrid_results[:3], 1):
+            subject = result["metadata"].get("subject", "N/A")
+            score = result.get("score", 0)
             logger.info(f"  #{i}: {subject} | Score: {score:.4f}")
 
         # Save comparison
         logger.info("\n📊 Saving comparison to Excel...")
         excel_path = BASE_DIR / "backend" / "data" / "search_comparison.xlsx"
         write_search_comparison_excel(
-            QUERY, semantic_results, hybrid_results, reranked, excel_path
+            QUERY, semantic_results, hybrid_results, excel_path
         )
 
         logger.info("\n✅ Test completed successfully!")
