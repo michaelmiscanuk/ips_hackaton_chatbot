@@ -4,7 +4,6 @@ import os
 import shutil
 import lzma
 import tarfile
-import gdown
 from pathlib import Path
 from dotenv import load_dotenv
 
