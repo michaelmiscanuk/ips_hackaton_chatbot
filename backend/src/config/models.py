@@ -8,6 +8,8 @@ Ollama models with different parameters.
 # pylint: disable=import-error
 
 import os
+import json
+from pathlib import Path
 from typing import Optional
 from langchain_ollama import ChatOllama
 from langchain_openai import AzureOpenAIEmbeddings
@@ -81,7 +83,7 @@ def get_model(
     passing a model name and configuration parameters.
 
     Args:
-        model_name: Name of the Ollama model (defaults to env var or llama3.2)
+        model_name: Name of the Ollama model (defaults to config.json or llama3.2)
         temperature: Sampling temperature
         **kwargs: Additional parameters for ModelConfig
 
@@ -93,7 +95,13 @@ def get_model(
         >>> model = get_model()  # Uses default configuration
     """
     if model_name is None:
-        model_name = os.getenv("DEFAULT_MODEL", "llama3.2")
+        config_path = Path(__file__).parent.parent.parent / "config.json"
+        try:
+            with open(config_path, "r") as f:
+                config = json.load(f)
+            model_name = config.get("default_model", "llama3.2")
+        except (FileNotFoundError, json.JSONDecodeError):
+            model_name = "llama3.2"
 
     config = ModelConfig(model_name=model_name, temperature=temperature, **kwargs)
 
@@ -135,6 +143,16 @@ def get_langchain_azure_embedding_model(deployment_name="text-embedding-3-small_
     )
 
 
+def _load_config():
+    """Load configuration from config.json"""
+    config_path = Path(__file__).parent.parent.parent / "config.json"
+    try:
+        with open(config_path, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
 def get_embedding_model_name():
     """
     Get the current embedding model name for naming ChromaDB directories.
@@ -147,14 +165,21 @@ def get_embedding_model_name():
         'nomic-embed-text'  # for Ollama
         'text-embedding-3-small_mimi'  # for Azure
     """
-    provider = os.getenv("EMBEDDING_PROVIDER", "ollama").lower()
+    config = _load_config()
+
+    # Env vars take precedence, then config.json, then default
+    provider = os.getenv(
+        "EMBEDDING_PROVIDER", config.get("embedding_provider", "ollama")
+    ).lower()
 
     if provider == "azure":
         model_name = os.getenv(
             "AZURE_EMBEDDING_DEPLOYMENT", "text-embedding-3-small_mimi"
         )
     else:
-        model_name = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
+        model_name = os.getenv(
+            "EMBEDDING_MODEL", config.get("embedding_model", "nomic-embed-text")
+        )
 
     # Sanitize model name for use in paths (replace unsafe characters)
     return model_name.replace("/", "-").replace("\\", "-").replace(":", "-")
@@ -180,7 +205,12 @@ def get_embedding_model():
         >>> embeddings = get_embedding_model()
         >>> vectors = embeddings.embed_documents(["text1", "text2"])
     """
-    provider = os.getenv("EMBEDDING_PROVIDER", "ollama").lower()
+    config = _load_config()
+
+    # Env vars take precedence, then config.json, then default
+    provider = os.getenv(
+        "EMBEDDING_PROVIDER", config.get("embedding_provider", "ollama")
+    ).lower()
 
     if provider == "azure":
         # Use Azure OpenAI embeddings
@@ -195,7 +225,9 @@ def get_embedding_model():
                 "OllamaEmbeddings not available. Install with: pip install langchain-ollama"
             )
 
-        model_name = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
+        model_name = os.getenv(
+            "EMBEDDING_MODEL", config.get("embedding_model", "nomic-embed-text")
+        )
         base_url = os.getenv(
             "OLLAMA_HOST", os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         )

@@ -16,120 +16,26 @@
     
     <!-- CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <style>
-        /* Simple Chat Styles Override/Addition */
-        body {
-            background-color: #f4f4f9;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .chat-container {
-            width: 100%;
-            max-width: 600px;
-            height: 80vh;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        .chat-header {
-            background: #4a90e2;
-            color: white;
-            padding: 1rem;
-            text-align: center;
-        }
-        .chat-header h1 {
-            margin: 0;
-            font-size: 1.2rem;
-        }
-        .chat-messages {
-            flex: 1;
-            padding: 1rem;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-        .message {
-            max-width: 80%;
-            padding: 0.8rem 1rem;
-            border-radius: 12px;
-            line-height: 1.5;
-        }
-        .bot-message {
-            background: #f0f2f5;
-            color: #333;
-            align-self: flex-start;
-            border-bottom-left-radius: 2px;
-        }
-        .user-message {
-            background: #4a90e2;
-            color: white;
-            align-self: flex-end;
-            border-bottom-right-radius: 2px;
-        }
-        .chat-input-area {
-            padding: 1rem;
-            border-top: 1px solid #eee;
-            background: white;
-        }
-        #chatForm {
-            display: flex;
-            gap: 0.5rem;
-        }
-        #messageInput {
-            flex: 1;
-            padding: 0.8rem;
-            border: 1px solid #ddd;
-            border-radius: 24px;
-            outline: none;
-            font-family: inherit;
-            color: #333;
-        }
-        #messageInput:focus {
-            border-color: #4a90e2;
-        }
-        button {
-            padding: 0.8rem 1.5rem;
-            background: #4a90e2;
-            color: white;
-            border: none;
-            border-radius: 24px;
-            cursor: pointer;
-            font-weight: 600;
-        }
-        button:hover {
-            background: #357abd;
-        }
-        button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-        .typing-indicator {
-            font-size: 0.8rem;
-            color: #888;
-            margin-left: 1rem;
-            margin-bottom: 0.5rem;
-            display: none;
-        }
-    </style>
 </head>
 <body>
     <div class="chat-container">
         <div class="chat-header">
-            <h1>AI Support Assistant</h1>
+            <h1>
+                <span class="chat-header-icon">🤖</span>
+                AI Support Assistant
+            </h1>
         </div>
         <div class="chat-messages" id="chatMessages">
             <div class="message bot-message">
                 Hello! I'm your AI support assistant. How can I help you today?
             </div>
         </div>
-        <div class="typing-indicator" id="typingIndicator">AI is typing...</div>
+        <div class="typing-indicator" id="typingIndicator">
+            AI is typing
+            <div class="typing-dots">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
         <div class="chat-input-area">
             <form id="chatForm">
                 <input type="text" id="messageInput" placeholder="Type your message..." required autocomplete="off">
@@ -139,6 +45,7 @@
     </div>
 
     <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

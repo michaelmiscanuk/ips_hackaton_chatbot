@@ -14,14 +14,18 @@ function appendMessage(content, isUser) {
     const messageDiv = document.createElement('div');
     messageDiv.classList.add('message');
     messageDiv.classList.add(isUser ? 'user-message' : 'bot-message');
-    messageDiv.textContent = content;
+    if (isUser) {
+        messageDiv.textContent = content;
+    } else {
+        messageDiv.innerHTML = marked.parse(content);
+    }
     chatMessages.appendChild(messageDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
 function showTyping() {
     if (typingIndicator) {
-        typingIndicator.style.display = 'block';
+        typingIndicator.style.display = 'flex';
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 }

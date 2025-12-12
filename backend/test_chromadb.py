@@ -4,15 +4,17 @@ Quick Test Script for ChromaDB Hybrid Search
 This script provides a simple way to test your ChromaDB setup and hybrid search functionality.
 
 Usage:
-    python test_chromadb.py "your search query here"
+    python test_chromadb.py
 
-Example:
-    python test_chromadb.py "How do I reset my password?"
+Configure the TEST_QUERY variable below to set the search query.
 """
 
 import asyncio
 import sys
 from pathlib import Path
+
+# Configuration
+TEST_QUERY = "Hello Support Team, my Plumbus has run out of Fleeb Juice, and I’m concerned this may lead to unexpected system downtime. Could you please advise on how I can obtain more as soon as possible? Thank you for your assistance."
 
 # Add data directory to path
 sys.path.insert(0, str(Path(__file__).parent / "data"))
@@ -66,7 +68,7 @@ async def test_search(query: str):
                 similarity = 1 - (dist / 2)
                 print(f"  #{i}: {subject}")
                 print(f"      Similarity: {similarity:.4f}")
-                print(f"      Preview: {doc[:100]}...")
+                print(f"      Document: {doc}")
                 print()
         print()
 
@@ -86,7 +88,7 @@ async def test_search(query: str):
             print(f"      Combined Score: {score:.6f}")
             print(f"      Semantic: {semantic_score:.4f} | BM25: {bm25_score:.4f}")
             print(f"      Source: {source}")
-            print(f"      Preview: {result['document'][:100]}...")
+            print(f"      Document: {result['document']}")
             print()
         print()
 
@@ -119,15 +121,7 @@ async def test_search(query: str):
 
 def main():
     """Main function."""
-    if len(sys.argv) < 2:
-        print('Usage: python test_chromadb.py "your search query"')
-        print()
-        print("Example:")
-        print('  python test_chromadb.py "How do I reset my password?"')
-        print()
-        sys.exit(1)
-
-    query = " ".join(sys.argv[1:])
+    query = TEST_QUERY
     asyncio.run(test_search(query))
 
 

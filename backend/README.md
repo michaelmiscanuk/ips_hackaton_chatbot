@@ -60,7 +60,14 @@ ollama serve
 ollama pull llama3.2
 ```
 
-4. Create `.env` file (optional):
+4. Create `config.json` file for default model configuration:
+```json
+{
+  "default_model": "qwen3:1.7b"
+}
+```
+
+5. Create `.env` file for other configurations (optional):
 ```bash
 cp .env.example .env
 ```
@@ -90,10 +97,38 @@ result = workflow.invoke({
 
 ## Configuration
 
-Models are configured in `src/config/models.py`. You can:
-- Change the default model
-- Add new model configurations
-- Adjust model parameters (temperature, etc.)
+The application uses `config.json` for model and embedding configuration. Create this file in the `backend/` directory:
+
+```json
+{
+  "default_model": "qwen3:1.7b",
+  "embedding_provider": "ollama",
+  "embedding_model": "nomic-embed-text"
+}
+```
+
+### Configuration Keys
+
+- **`default_model`** (string): The default Ollama model to use for chat responses. Examples: "llama3.2", "qwen3:1.7b", "mistral". This model is loaded when no specific model is provided.
+
+- **`embedding_provider`** (string): The provider for generating text embeddings. Options:
+  - `"ollama"` (default): Use local Ollama models for embeddings
+  - `"azure"`: Use Azure OpenAI embeddings service
+
+- **`embedding_model`** (string): The specific embedding model to use, depending on the provider:
+  - For Ollama: Model names like "nomic-embed-text", "mxbai-embed-large", "all-minilm"
+  - For Azure: The deployment name, e.g., "text-embedding-3-small_mimi"
+
+### Environment Variables (.env)
+
+Additional configuration is handled via environment variables in a `.env` file:
+
+- `OLLAMA_BASE_URL`: Ollama API endpoint (default: http://localhost:11434)
+- `AZURE_OPENAI_API_KEY`: Azure OpenAI API key (required for Azure embeddings)
+- `AZURE_OPENAI_ENDPOINT`: Azure OpenAI endpoint URL
+- `AZURE_OPENAI_API_VERSION`: API version (default: 2024-12-01-preview)
+- `AZURE_EMBEDDING_DEPLOYMENT`: Azure embedding deployment name
+- `LANGSMITH_*`: LangSmith tracing configuration (optional)
 
 ## Requirements
 

@@ -7,10 +7,10 @@ from dotenv import load_dotenv
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+# Add backend to path to allow imports from src
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.config.models import get_langchain_azure_embedding_model
+from src.config.models import get_embedding_model, get_embedding_model_name
 
 # Load environment variables
 load_dotenv()
@@ -24,7 +24,15 @@ except NameError:
     print(f"🔍 BASE_DIR calculated from cwd: {BASE_DIR}")
 
 CSV_PATH = BASE_DIR / "backend" / "data" / "sample0.csv"
-CHROMA_DB_DIR = BASE_DIR / "backend" / "data" / "chroma_db"
+
+
+def get_chromadb_dir():
+    """Get ChromaDB directory with embedding model suffix."""
+    model_name = get_embedding_model_name()
+    return BASE_DIR / "backend" / "data" / f"chroma_db_{model_name}"
+
+
+CHROMA_DB_DIR = get_chromadb_dir()
 
 
 async def process_row(row):
@@ -64,7 +72,7 @@ async def main():
     print(f"Prepared {len(documents)} documents.")
 
     print("Initializing Embedding Model...")
-    embedding_model = get_langchain_azure_embedding_model()
+    embedding_model = get_embedding_model()
 
     print(f"Creating/Overwriting ChromaDB at {CHROMA_DB_DIR}...")
     # Initialize Chroma and add documents

@@ -130,10 +130,16 @@ def generate(state: ChatState) -> Dict[str, Any]:
     # Format context
     context_str = "\n\n".join(context) if context else "No relevant information found."
 
-    system_prompt = f"""You are a helpful customer support assistant. 
-Use the following context to answer the user's question. 
-If the answer is not in the context, politely say that you don't have the answer and suggest contacting human support at support@example.com.
-Keep your answers concise and helpful.
+    system_prompt = f"""You are a customer support chatbot specialized in providing detailed solutions to user problems.
+
+Your role is to:
+1. Carefully analyze the user's query and the provided context.
+2. Address the specific problem the user is facing.
+3. Provide step-by-step instructions on how to solve the issue, formatted as numbered steps in markdown.
+4. Use only the information from the context to formulate your response.
+5. Be thorough and detailed in your explanations.
+6. Ensure your response is helpful and actionable.
+7. Do not include any internal reasoning, thinking process, or meta-commentary in your final response.
 
 Context:
 {context_str}
@@ -145,6 +151,11 @@ Context:
 
     try:
         model = get_model(temperature=0.7)
+        # ChatOllama uses 'model', others might use 'model_name'
+        actual_model_name = getattr(
+            model, "model", getattr(model, "model_name", "MockChatOllama")
+        )
+        logger.info(f"TEST Using model: {actual_model_name}")
         response = model.invoke(prompt_messages)
 
         logger.info("Response generated")

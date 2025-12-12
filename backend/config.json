@@ -1,0 +1,5 @@
+{
+    "default_model": "qwen2.5-coder:7b",
+    "embedding_provider": "ollama",
+    "embedding_model": "nomic-embed-text"
+}

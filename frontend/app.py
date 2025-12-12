@@ -71,7 +71,7 @@ def chat():
         response = requests.post(
             backend_url,
             json={"message": message, "thread_id": thread_id},
-            timeout=60,
+            timeout=120,
         )
 
         # Check if request was successful

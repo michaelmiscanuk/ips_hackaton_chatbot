@@ -4,6 +4,7 @@ import os
 import shutil
 import lzma
 import tarfile
+import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -78,7 +79,7 @@ def safe_remove_directory(target_path: Path):
             shutil.rmtree(target_path)
         else:
             target_path.unlink()
-    except PermissionError:
+    except (PermissionError, FileNotFoundError, OSError):
         # Force remove on Windows
         if os.name == "nt":
             os.system(f'rmdir /s /q "{target_path}"')
@@ -116,6 +117,17 @@ def decompress_path(path_to_decompress: Path):
     safe_remove_directory(target_path)
 
     try:
+        # Try using system tar first (more robust for long paths on Windows)
+        try:
+            cmd = ["tar", "-xf", str(path_to_decompress), "-C", str(target_path.parent)]
+            # print(f"Running system tar: {' '.join(cmd)}")
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            print(f"Successfully decompressed: {path_to_decompress}")
+            return
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Fallback to Python implementation if tar fails or is missing
+            print("System tar failed or missing, falling back to Python tarfile...")
+
         # Extract tar.xz file
         with lzma.open(path_to_decompress, "rb") as xz_file:
             with tarfile.open(fileobj=xz_file, mode="r") as tar:

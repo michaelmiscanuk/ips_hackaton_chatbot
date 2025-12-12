@@ -44,14 +44,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Add src to path
+# Add backend to path
 try:
-    BASE_DIR = Path(__file__).resolve().parents[2]
+    BACKEND_DIR = Path(__file__).resolve().parents[1]
 except NameError:
-    BASE_DIR = Path(os.getcwd()).parents[0]
+    BACKEND_DIR = Path(os.getcwd()).parents[0]
 
-if str(BASE_DIR) not in sys.path:
-    sys.path.insert(0, str(BASE_DIR))
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
 # Import BM25 if available
 try:
@@ -66,6 +66,7 @@ except ImportError:
 from openai import AzureOpenAI
 from langchain_openai import AzureOpenAIEmbeddings
 from langchain_chroma import Chroma
+from src.config.models import get_embedding_model, get_embedding_model_name
 
 # Import embedding model configuration
 try:
@@ -76,33 +77,21 @@ except ImportError:
 # ==============================================================================
 # CONSTANTS & CONFIGURATION
 # ==============================================================================
-CSV_PATH = BASE_DIR / "backend" / "data" / "sample0.csv"
+# Use BACKEND_DIR (backend/) to locate data
+BASE_DIR = BACKEND_DIR.parent  # Root dir
+CSV_PATH = BACKEND_DIR / "data" / "sample0.csv"
 MAX_TOKENS = 8190
 
 
 def get_chromadb_dir():
     """Get ChromaDB directory with embedding model suffix."""
-    provider = os.getenv("EMBEDDING_PROVIDER", "ollama").lower()
-    if provider == "azure":
-        model_name = os.getenv(
-            "AZURE_EMBEDDING_DEPLOYMENT", "text-embedding-3-small_mimi"
-        )
-    else:
-        model_name = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
-    # Sanitize model name for use in paths
-    model_name = model_name.replace("/", "-").replace("\\", "-").replace(":", "-")
-    return BASE_DIR / "backend" / "data" / f"chroma_db_{model_name}"
+    model_name = get_embedding_model_name()
+    return BACKEND_DIR / "data" / f"chroma_db_{model_name}"
 
 
 def get_collection_name():
     """Get collection name with embedding model suffix."""
-    provider = os.getenv("EMBEDDING_PROVIDER", "ollama").lower()
-    if provider == "azure":
-        model_name = os.getenv(
-            "AZURE_EMBEDDING_DEPLOYMENT", "text-embedding-3-small_mimi"
-        )
-    else:
-        model_name = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
+    model_name = get_embedding_model_name()
     # Sanitize model name for collection names
     model_name = (
         model_name.replace("/", "-")
@@ -145,46 +134,8 @@ def get_langchain_azure_embedding_model(deployment_name="text-embedding-3-small_
     )
 
 
-def get_embedding_model():
-    """
-    Get the configured embedding model based on environment variables.
-
-    Returns either Ollama or Azure embeddings based on EMBEDDING_PROVIDER setting.
-    Default is Ollama with nomic-embed-text model.
-
-    Environment Variables:
-        EMBEDDING_PROVIDER: "ollama" (default) or "azure"
-        EMBEDDING_MODEL: Model name (default: "nomic-embed-text" for Ollama)
-        AZURE_EMBEDDING_DEPLOYMENT: Azure deployment name (when using Azure)
-        OLLAMA_BASE_URL: Ollama API URL (default: http://localhost:11434)
-
-    Returns:
-        Embedding model instance (OllamaEmbeddings or AzureOpenAIEmbeddings)
-    """
-    provider = os.getenv("EMBEDDING_PROVIDER", "ollama").lower()
-
-    if provider == "azure":
-        # Use Azure OpenAI embeddings
-        deployment_name = os.getenv(
-            "AZURE_EMBEDDING_DEPLOYMENT", "text-embedding-3-small_mimi"
-        )
-        return get_langchain_azure_embedding_model(deployment_name=deployment_name)
-    else:
-        # Use Ollama embeddings (default)
-        if OllamaEmbeddings is None:
-            raise ImportError(
-                "OllamaEmbeddings not available. Install with: pip install langchain-ollama"
-            )
-
-        model_name = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
-        base_url = os.getenv(
-            "OLLAMA_HOST", os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        )
-
-        return OllamaEmbeddings(
-            model=model_name,
-            base_url=base_url,
-        )
+# get_embedding_model is now imported from src.config.models
+# We remove the local definition to avoid duplication and ensure consistency
 
 
 def get_document_hash(text: str) -> str:
@@ -819,13 +770,12 @@ if __name__ == "__main__":
         logger.info(f"Testing with query: '{QUERY}'")
         logger.info(f"{'=' * 70}\n")
 
-        embedding_client = get_azure_embedding_model()
-
         # Step 1: Pure semantic search
         logger.info("[1/3] Pure Semantic Search")
+        # We pass None for embedding_client as it's ignored in favor of get_embedding_model()
         semantic_results = similarity_search_chromadb(
             collection=collection,
-            embedding_client=embedding_client,
+            embedding_client=None,
             query=QUERY,
             k=k,
         )
